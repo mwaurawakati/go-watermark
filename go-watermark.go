@@ -43,6 +43,7 @@ type Font struct {
 type Watermark struct {
 	Image      string
 	OutputFile string
+	Logo       string
 	Text       string
 	Position
 	Font
@@ -52,6 +53,7 @@ type Watermark struct {
 	Repeat
 	Rotate float64
 	ImgSize
+	AddLogoFile bool
 }
 
 type Repeat struct {
@@ -67,6 +69,7 @@ func AddWatermark(watermark *Watermark) error {
 	if err != nil {
 		return fmt.Errorf("error decoding image: %v", err)
 	}
+	var logoFile image.Image
 
 	bgImage := imageResize(srcImage, watermark.ImgSize.Width, watermark.ImgSize.Height)
 
@@ -75,6 +78,41 @@ func AddWatermark(watermark *Watermark) error {
 
 	dc := gg.NewContext(imgWidth, imgHeight)
 	dc.DrawImage(bgImage, 0, 0)
+
+	// Add logoFile
+	if watermark.AddLogoFile {
+		logoFile, err = imageDecode(watermark.Logo)
+		if err != nil {
+			return fmt.Errorf("error decoding image: %v", err)
+		}
+		logoFile = imaging.Resize(logoFile, 60, 60, imaging.Lanczos)
+		logoHeight := logoFile.Bounds().Dy()
+		x := 10.0
+		y := float64(dc.Height()) - float64(logoHeight) - 10.0
+		dc.DrawImage(logoFile, int(x), int(y))
+	}
+
+	// Add IG Image
+	igImg, err := imageDecode("instagram.jpeg")
+	if err != nil {
+		return fmt.Errorf("error decoding image: %v", err)
+	}
+	igImg = imaging.Resize(igImg, 40, 40, imaging.Lanczos)
+	igImgHeight := igImg.Bounds().Dy()
+	x := imgWidth - 320.0
+	y := float64(dc.Height()) - float64(igImgHeight) - 10.0
+	dc.DrawImage(igImg, int(x), int(y))
+
+	// Add phone Image
+	phoneImg, err := imageDecode("phone.png")
+	if err != nil {
+		return fmt.Errorf("error decoding image: %v", err)
+	}
+	phoneImg = imaging.Resize(phoneImg, 40, 40, imaging.Lanczos)
+	phoneImgHeight := igImg.Bounds().Dy()
+	x = imgWidth - 320.0
+	y = float64(dc.Height()) - float64(phoneImgHeight) - 60.0
+	dc.DrawImage(phoneImg, int(x), int(y))
 
 	fontByte := goregular.TTF
 	if len(watermark.FontName) > 0 {
@@ -88,7 +126,16 @@ func AddWatermark(watermark *Watermark) error {
 	if err != nil {
 		return fmt.Errorf("error in truetype.Parse: %v", err)
 	}
+	fontSize := 40.0
+	f, _ := gg.LoadFontFace("./arial.ttf", fontSize)
+	dc.SetFontFace(f)
+	dc.SetColor(image.NewUniform(color.RGBA{255, 255, 0, 255}))
 
+	text := "@nazar.hajy"
+	textX := float64(imgWidth) - 50.0
+	textY := float64(imgHeight) - 60.0
+	dc.DrawStringAnchored(text, textX, textY+5, 1, 1)
+	dc.DrawStringAnchored("862-60-50-50", textX+20, textY-45, 1, 1)
 	DrawWatermark(font, watermark, dc, float64(imgWidth), float64(imgHeight))
 
 	err = dc.SavePNG(watermark.OutputFile)
@@ -131,6 +178,10 @@ func DrawWatermark(font *truetype.Font, watermark *Watermark, dc *gg.Context, im
 
 		y += watermark.LineSpacing
 	}
+	face := truetype.NewFace(font, &truetype.Options{Size: watermark.FontSize})
+	dc.SetFontFace(face)
+	dc.SetColor(watermark.Color)
+	dc.DrawString("IG:@MwauraWakati", float64(dc.Width()-200), float64(y))
 }
 
 func imageDecode(imageFile string) (image.Image, error) {
